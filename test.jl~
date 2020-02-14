@@ -2,10 +2,8 @@ using LinearAlgebra
 using Plots
 
 #=
-
 1D scheme, with with lagragian first order basis functions on evenly spaced mesh.
 Interpolation points are equal to element boundaries.
-
 =#
 
 # initial condition
@@ -14,7 +12,6 @@ g(t) = 1
 
 function update_flux!(flux::Array{Float64}, u::Array{Float64}, t::Float64, a::Float64, alpha::Float64)
     #=
-
     for the far left element, the flux on the left side is the boundary condition,
     and the flux on the right is only dependent on the last element.
     
@@ -42,9 +39,7 @@ function main()
     let
 
         #=
-
         Parameters
-
         =#
         #wave-speed
         a = 1.0
@@ -77,9 +72,7 @@ function main()
         t_int = t_step:t_step:T
         
         #=
-
         Assembing matrices and vectors
-
         =#
 
         # M matrix

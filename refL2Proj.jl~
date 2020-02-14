@@ -1,6 +1,0 @@
-#=
-
-a program that returns the coordinates of the L2 projection of a function onto the space spanned by arbitrarly many legendre polynomials on the reference interval [-1, 1]
-
-
-=#

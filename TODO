@@ -1,0 +1,15 @@
+
+Functions to write:
+
+	  1d advection with global matrices:
+	  	  fills u_t and returns
+		  
+	  1d advection with local matrices:
+	          fills u_t and returns
+
+	  advection plotter (better than what I have) (gt?):
+	  	    plots u_t as an animation
+
+	  eigenvalue getter of global matrix/plotter for stability
+
+          advection weak form functions

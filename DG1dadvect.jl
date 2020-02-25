@@ -218,8 +218,7 @@ end
 function u_a1!(u_a::Array{Float64,2}, a::Float64, λ::Float64, x::Array{Float64, 1},
                t::Array{Float64, 1})
 
-    
-    @show t
+
     for (j, t_j) in enumerate(t)
         for (i, x_i) in enumerate(x)
 
@@ -239,6 +238,8 @@ function convergence_test(a, Float64, λ::Float64, x::Array{Float64, 1},
                           t_int::Array{Float64, 1})
 
     #anayltic solution
+    
+    
 end
 
 
@@ -249,9 +250,9 @@ function main()
         ## Parameters ##
         
         # wave-speed
-        a = .5
+        a = 1.0
         # growth-speed?
-        λ = 1.0
+        λ = 0.5
         # flux parameter
         α = 1.0
         # Left side of the interval
@@ -259,7 +260,7 @@ function main()
         # Right side of the interval
         r = 1
         # Number of elements
-        nk = 20
+        nk = 100
         # order of approximations
         np = 2
         # Length of each element
@@ -277,9 +278,9 @@ function main()
         ## Time parameters ##
         
         # Total time
-        T = 5
+        T = 1
         # time step
-        t_step = .01
+        t_step = .0001
 
         # time interval
         t_int = t_step:t_step:T
@@ -313,7 +314,7 @@ function main()
         display(S)
         display(-a * S)
         # Advection matrix
-        A_l = M_inv * (-a .* S)
+        A_l = M_inv * (-a .* S) + [λ 0 ; λ 0]
         print("A_l:\n")
         display(A_l)
         # Flux matrix

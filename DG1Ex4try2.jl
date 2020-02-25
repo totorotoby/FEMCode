@@ -32,20 +32,18 @@ function update_flux!(flux::Array{Float64}, u::Array{Float64}, t::Float64, a::Fl
 end
 
 function plotDG(data::Array{Array{Float64,1},1}, x_graph::Array{Float64, 1})
-
-   
+  
     fig = figure()
     ax = gca()
     ylims = (minimum([minimum(a) for a in data]), (maximum([maximum(a) for a in data])))
     axis(xlim=(x_graph[1], x_graph[end]), ylim = ylims)
     for t_step = 1:length(data)
-        #@show data[t_step]
         line_segs = get_segs(x_graph, data[t_step])
         ls = matplotlib.collections.LineCollection(line_segs)
         ax.clear()
         ax.add_collection(ls)
         axis("image")
-        sleep(.001)
+        sleep(.1)
         
     end  
 end
@@ -62,8 +60,7 @@ function get_segs(x::Array{Float64,1}, y::Array{Float64, 1})
             push!(segs, [pairs[i], pairs[i+1]])
         end
         
-    end
-    
+    end   
     return segs
 end
 
@@ -94,16 +91,14 @@ function assemble_global_matrix(m_inv, s, a, nk)
     for i = 1:loc_size:size(A_g, 1)
             A_g[i:i+1,i:i+1] = A_loc
     end
-
-    
-    
+ 
     @show A_g
     
     
 end
 
 
-function advect(nk, t_step)
+function advect(nk, t_step, np, h, x, a, nb, t_int, b ,alpha, u_t)
     
     let
 
@@ -148,7 +143,8 @@ function advect(nk, t_step)
         # "advection" matrix
         # dimensions : number of basis per element = np
         A = a .* M⁻¹ * S
-        #@show A
+        @show A
+       
         # flux vector:
         #  length = number of nodes = nb
         flux = zeros(nb)   
@@ -172,13 +168,8 @@ function advect(nk, t_step)
 
                 
                 dudt_s = - A * u[ul_index : ur_index] + b * u[ul_index : ur_index] + M⁻¹ * [fl_term, fr_term]
-                #@show M⁻¹
-                @show [fl_term, fr_term]
-                @show  M⁻¹ * [fl_term, fr_term]
-                @show u
-                #@show  [fl_term, fr_term]
-                #@show - A * u[ul_index : ur_index]
-                print("\n")
+        
+       
                 #dudt_w = A * u[ul_index : ur_index] + [flux[k] , -flux[k+1]]
                 
                 u[ul_index : ur_index] = u[ul_index : ur_index] + t_step * dudt_s
@@ -192,7 +183,7 @@ function advect(nk, t_step)
         
         end
         
-        return u_t
+        return u_t, x_graph
        
 
     end
@@ -224,7 +215,7 @@ function main()
         # Right side of the interval
         r = 1
         # Number of elements
-        #nk = 100
+        nk = 20
         # order of approximations
         np = 2
         # number of basis functions
@@ -241,7 +232,7 @@ function main()
         # Total time
         T = .02
         # time step
-        #t_step = .1
+        t_step = .1
         # time interval
         t_int = 0:t_step:T
         t_length = length(t_int)
@@ -249,6 +240,8 @@ function main()
         # solution to graph
         u_t = Array{Float64,1}[]
 
+        data, x_graph = advect(nk, t_step, np, h, x, a, nb, t_int, b, alpha, u_t)
+        plotDG(data, x_graph)
         
         
     end

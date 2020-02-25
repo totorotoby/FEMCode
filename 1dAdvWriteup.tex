@@ -1,0 +1,148 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{amsthm}
+\usepackage{graphicx}
+
+\newcommand{\norm}[1]{\left\lVert#1\right\rVert}
+\newtheorem{theorem}{Theorem}
+\newtheorem{prop}{Proposition}
+\newcommand{\overbar}[1]{\mkern 1.5mu\overline{\mkern-1.5mu#1\mkern-1.5mu}\mkern 1.5mu}
+
+\begin{document}
+
+
+\title{Discontinous Galerkin Method for 1D Advection Equation}
+\author{}
+\maketitle
+
+
+\section{Weak Formulation}
+  
+\noindent The Problem that we want to solve is:
+
+\begin{gather*}
+  \frac{\partial u}{\partial t} + a \frac{\partial u}{\partial x} - bu = 0 \qquad x \in [-1, 1] \\
+  u(0, t) = g(t) \\
+  u(x, 0) = f(x) \\
+\end{gather*}
+
+\noindent We want to find $u_h$ that is an approximation of $u$, and $u_h = \bigoplus_{k=1}^K u_h^k$, where $k$ indexes elements. If we define the spaces $V$ and $V_f$ , $V_f^k$:
+
+\begin{gather*}
+  V = \{ v(x) : \norm{v}^2 < \infty, \langle v, v^{\prime}\rangle < \infty\} \\
+  V_f = \{ v(x) : v \in V, v \text{ is a linear combination of basis functions}\} \\
+  V_f^k = \{ v(x) : v \in V_f, x \in D^k\}\\
+\end{gather*}
+
+\noindent Where $D^k$ is the domain of element k.  We can now consider the error between  $u_h^k \in V_f^k$ and $u$ we get:
+
+\begin{gather*}
+  u_h^k - u = \left(\frac{\partial u_h^k}{\partial t} + a \frac{\partial u_h^k}{\partial x} - bu_h^k\right) - \left(\frac{\partial u^k}{\partial t} + a \frac{\partial u^k}{\partial x} - bu^k\right) = \\
+  \left(\frac{\partial u_h^k}{\partial t} + a \frac{\partial u_h^k}{\partial x} - bu_h^k\right) - 0 = \frac{\partial u_h^k}{\partial t} + a \frac{\partial u_h^k}{\partial x} - bu_h^k \\
+\end{gather*}
+
+\noindent Similar to the Continious Galerkin (CG) Method we multiply the error, by a test function and integrate, except now (in DG) the integral is over each element so that we get:
+
+\begin{gather}
+  \int_{D_k} \left(\frac{\partial u_h^k}{\partial t} + a \frac{\partial u_h^k}{\partial x} - bu^k_h\right) v dx = 0 \qquad \forall v \in V_f^k,  k \in K
+\end{gather}
+
+\noindent Where $K$ is the set of all elements on our domain. Also note that due to the definition of $V$ this equations makes sense, and that while $u$ is both spatially dependent and time dependent, $v$ is only a function of space.
+
+\vspace{3mm}
+
+\noindent What is the best way to think about Eq. 1? Eq. 1 is saying that the error of what will be our solution is orthogonal to every function in $V_0$. From linear algebra we know that if $\left(\frac{\partial u_h^k}{\partial t} + a \frac{\partial u_h^k}{\partial x} - bu_h^k\right) \neq \vec{0}$, and it is orthogonal to every vector in $V_f^k$ then $\left(\frac{\partial u_h^k}{\partial t} + a \frac{\partial u_h^k}{\partial x} - bu_h^k\right) \notin V_f$. In other words Eq. 1 is ``saying'' the error on a single element is not in the our finite dimensional space $V_f^k$, or that the error in $V_f^k$ must be 0.
+
+\section{System of Linear equations}
+
+\noindent Further confining ourselves to the spaces:
+
+$$ V_0^k = \{ v : v \in V_f^k, v \text{ is linear}\}$$
+
+\noindent the problem becomes find $u_h \in V_0^k$ such that:
+
+\begin{gather}
+  \int_{D_k} \left(\frac{\partial u_h^k}{\partial t} + a \frac{\partial u_h^k}{\partial x} - bu_h^k\right) v dx = 0 \qquad \forall v \in V_0,  k \in K
+\end{gather}
+
+\noindent We can write (2) using a basis for $v$. Let $\phi_1$ and $\phi_2$ be lagragian basis functions on any element $k$, where:
+
+\begin{gather*}
+  \phi_1(x) = - \frac{x_r^k - x}{h}\\
+  \phi_2(x) = \frac{x - x_l^k}{h}\\
+\end{gather*}
+
+Where $ h = x_r^k - x_l^k$, and $x_r^k$ is the $x$ value of the right side of the element, and $x_l^k$ is the left side.  Then (2) is equivalent to:
+
+\begin{gather}
+\int_{D_k} \left(\frac{\partial u_h^k}{\partial t} + a \frac{\partial u_h^k}{\partial x} - bu_h^k\right) \phi_i dx = 0 \qquad i = 1,2,  k \in K
+\end{gather}
+
+To see that (2) if and only if (3), first both equations for each element in (3) are just cases of (2) where if we write $v$ as a linear combintation of basis functions $v = v_1\phi_1 + v_2\phi_2$, we have $v_1 = 0$ for one case and $v_2 = 0$ for the other. On the other hand if (3) is true then multiplying through by a constant, and adding the two equations of (3) we recover (2).
+
+
+Next, since $u_h \in V_0$ we can also write it as a combintation of the basis functions on a singgle element so that:
+
+
+$$u^k_h = \sum_{j=1}^2 \overbar{u}^k_j(x_j^k, t)\phi_j(x)$$
+
+\noindent Where $\overbar{u}$ is a coordinate. It is important here to realize what we will be solving for in the long run. The basis functions are only functions of space like the test functions were. The coordinates of the basis functions are functions of time though, and at each timestep we want to solve for a new set of coordinates. Secondly the notation $ \overbar{u}^k_j(x_j^k, t)$ is not great, $x^k_j$ does not mean that $\overbar{u}^k_j$ is a function of space, but only that this coordinate has an assosiated point on $x$, because the basis functions are interpolating polynomials. Plugging in this repersentation of $u_h^k$ in (3) we get:
+
+\begin{gather*}
+ \sum_{j=1}^2 \frac{\partial\overbar{u}^k_j}{\partial t}\int_{D_k}\phi_j\phi_i dx + a\sum_{j=1}^2 \overbar{u}^k_j\int_{D_k} \phi_j^{\prime} \phi_i dx - b  \sum_{j=1}^2 \overbar{u}^k_j\int_{D_k}\phi_j \phi_i dx = 0 \qquad i = 1,2,  k \in K
+\end{gather*}
+
+At this point we could make a system of equations for each element, but there would be no connection between any of the elements, and no way for boundary data to enter the system. Doing integration by parts on the second term solves this problem, giving:
+
+\begin{gather*}
+  \sum_{j=1}^2 \frac{\partial\overbar{u}^k_j}{\partial t}\int_{D_k}\phi_j\phi_i dx + a\sum_{j=1}^2 \overbar{u}^k_j \phi_j \phi_i\biggr\rvert_{x_l^k}^{x_r^k}  - a\sum_{j=1}^2 \overbar{u}^k_j\int_{D_k} \phi_j \phi_i^{\prime} dx - b  \sum_{j=1}^2 \overbar{u}^k_j\int_{D_k}\phi_j \phi_i dx = 0 \qquad i = 1,2,  k \in K\\
+\implies   \sum_{j=1}^2 \frac{\partial\overbar{u}^k_j}{\partial t}\int_{D_k}\phi_j\phi_i dx + au^k_h\phi_i\biggr\rvert_{x_l^k}^{x_r^k}  - a\sum_{j=1}^2 \overbar{u}^k_j\int_{D_k} \phi_j \phi_i^{\prime} dx - b  \sum_{j=1}^2 \overbar{u}^k_j\int_{D_k}\phi_j \phi_i dx = 0 \qquad i = 1,2,  k \in K\\
+\end{gather*}
+
+\noindent The term $au^k_h(x_l^k)\vec{\phi}$ and $au^k_h(x_r^k)\vec{\phi}$ are made into numerical fluxes denoted $au_h^k(x^k_{\cdot})\vec{\phi} = af^*\vec{\phi}$, which we will later choose. We then integrate by parts again, to get SAT or penalty parameter terms for the boundaries of each element, so that we have:
+
+\begin{gather*}
+  \sum_{j=1}^2 \frac{\partial\overbar{u}^k_j}{\partial t}\int_{D_k}\phi_j\phi_i dx
+  + f^*\phi_i\biggr\rvert_{x_l^k}^{x_r^k} -  au_h^k\phi_i\biggr\rvert_{x_l^k}^{x_r^k} + a\sum_{j=1}^2 \overbar{u}^k_j\int_{D_k} \phi_j^{\prime} \phi_i dx - b  \sum_{j=1}^2 \overbar{u}^k_j\int_{D_k}\phi_j \phi_i dx = 0 \qquad i = 1,2,  k \in K\\
+\end{gather*}
+
+\newpage  
+
+\noindent Writing this in matrix form we get:
+\begin{gather}
+  \frac{\partial\hat{u}_h^k}{\partial t} M^k + a S^k \hat{u}_h^k - bM^k\hat{u}_h^k = (au_h^k(x_r^k) - f^*_r)\vec{\phi}(x_r^k) - (au_h^k(x_l^k) - f^*_l)\vec{\phi}(x_l^k)\qquad \forall k \in K\\
+  M^k = \langle \phi_j, \phi_i \rangle \qquad S^k = \langle \phi_j^{\prime}, \phi_i\rangle
+\end{gather}
+
+\noindent The only thing left to figure out to have a linear system of equations is what the fluxs can and should be. For each adjacent element we have that $x^{k-1}_r = x^k_l$ and $x^k_r = x^{k+1}_l$ so that on each element boundary $u_h$ is multiply defined. So that the solution vector has length $2|K|$. It therefore seems reasonable to make each flux/penalty parameter be equal to so weighted average of value definied on element $k-1$ and element $k$ for the left boundary, and $k$ and $k+1$ for the right boundary, so that:
+
+\begin{gather*}
+  f^*_l = \alpha u_h^{k-1}(x^{k-1}_r) + (1-\alpha)u_h^k(x^k_l)\\
+  f^*_r = \alpha u_h^{k}(x^{k}_r) + (1-\alpha)u_h^{k+1}(x^k_l)
+\end{gather*}
+
+Where $0 \leq\alpha \leq 1$.
+
+\section{Stability for Fluxes}
+
+To find the stability conditions for the flux we can use the energy method. Similar to SBP-SAT we want $S^k$ to mimic summation by parts and $M^k$ to mimic the energy. Before showing this though the energy over the whole domain without any estimates is:
+
+\begin{gather*}
+  \frac{\partial}{\partial t} \norm{u} =  \frac{\partial}{\partial t} \int_{-1}^1 u^2 dx = \int_{-1}^1 2u\frac{\partial u}{\partial t} dx = \int_{-1}^1 2u\left(bu-a\frac{\partial u}{\partial x}\right) dx = 2b\int_{-1}^1 u^2 dx - 2a\int_{-1}^1 u\frac{\partial u }{\partial x} dx \\
+  =  2b\int_{-1}^1 u^2 dx - a\int_{-1}^1 u\frac{\partial u }{\partial x} dx + a\int_{-1}^1 u\frac{\partial u }{\partial x} dx - au^2\biggr\rvert_{-1}^1 = 2b\norm{u} + a(u^2(-1) - u^2(1))
+\end{gather*}
+
+To mimic this with $M^k$, and $S^k$, we have:
+
+\begin{gather*}
+  (\hat{u}_h^k)^T M^k \hat{u}_h^k = \norm{u_h^k} \\
+  (\hat{u}_h^k)^T S^k \hat{u}_h^k = \int_{D_k} u_h^k\frac{\partial u_h^k}{\partial x} dx = \frac{1}{2} (u_h^k)^2\biggr\rvert_{x_l^k}^{x^k_r}
+\end{gather*}
+
+
+
+
+\end{document}

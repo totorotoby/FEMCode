@@ -16,4 +16,4 @@ for t_step = 1:size(an_data,1)
     clearpoints(an_sol)
     addpoints(an_sol, x_an_axis, an_data(t_step, :));
     pause(.1);
-end
+    endc

@@ -6,11 +6,11 @@ using LinearAlgebra
 
 function advec_global_strong_euler!(u::Array{Float64, 2}, G::SparseMatrixCSC{Float64, Int64},
                                     b::Array{Float64, 1}, t_int::StepRangeLen, step::Float64,
-                                    g::Function, a::Float64)
+                                    g::Function, a::Float64, m_inv::Array{Float64,2})
 
     for (i, t) in enumerate(t_int)
-        
-        b[1] = a * g(t)
+        b[1] = a*m_inv[1,1] * g(t)
+        b[2] = a*m_inv[2,1] * g(t)
         dudt = G * u[i, :] + b
         u[i+1, :] = u[i, :] .+  dudt .* step
         
@@ -23,9 +23,11 @@ function advec_local_strong_euler!(u::Array{Float64, 2}, A_l::Array{Float64, 2},
     for (t_i, t) = enumerate(t_int)
         for k = 1:nk
             if k == 1
-                dudt = A_l * u[t_i, 2*k - 1 : 2*k] + F_l * [g(t) , u[t_i, 1], u[t_i, 2], u[t_i, 3]]
+                dudt = A_l * u[t_i, 2*k - 1 : 2*k] + F_l * [g(t) , u[t_i, 1],
+                                                            u[t_i, 2], u[t_i, 3]]
             elseif k == nk
-                dudt = A_l *  u[t_i, 2*k - 1 : 2*k] + F_l * [u[t_i, 2*k-2], u[t_i, 2*k-1], u[t_i, 2*k], u[t_i, 2*k]] 
+                dudt = A_l *  u[t_i, 2*k - 1 : 2*k] + F_l * [u[t_i, 2*k-2], u[t_i, 2*k-1],
+                                                             u[t_i, 2*k], u[t_i, 2*k]] 
             else                
                 dudt = A_l * u[t_i, 2*k - 1 : 2*k] + F_l * u[t_i, 2*k-2 : 2*k+1]
             end
@@ -94,7 +96,8 @@ function get_global_flux!(F_g::SparseMatrixCSC{Float64, Int64}, F_l::Array{Float
     for i = 3 : 2 : dim - 2
         F_g[i : i+1, i-1 : i+2] = F_l
     end
-
+   
+   
     
 end
                                   
@@ -191,22 +194,32 @@ end
 
 function show_stability_region(G::Array{Float64,2}, h::Float64, t_step::Float64)
 
+    #function for euler stability
+    e_par = collect(0:.01:2*pi)
+    z = exp.(1im*e_par)
+    r = z .- 1
+    
     E =eigen(t_step .* G)
     
-    to_graph = E.values .* h
-  
-    plt = Plots.plot()
+    to_graph = E.values
+    
+    stable = stability_test(G, t_step)
+    @show stable
+    plt = Plots.plot(title = "Very Stable with # element = 30 and t step = .005", legend=false)
+    plot!(r)
     scatter!(to_graph)
+
+    png("very_stable")
+    #gui(plt)
     return plt
 
 end
 
-function stability_test(G::Array{Float64,2}, h::Float64, t_step::Float64)
+function stability_test(G::Array{Float64,2}, t_step::Float64)
 
     E = eigen(t_step .* G).values
     sort!(E, by=abs)
     max_eig = E[end]
-    @show abs(max_eig + 1)
     if (abs(max_eig + 1) < 1)
         return true
     else
@@ -234,14 +247,98 @@ end
 
 
 
-function convergence_test(a, Float64, λ::Float64, x::Array{Float64, 1},
-                          t_int::Array{Float64, 1})
+function convergence_table(a::Float64, λ::Float64, α::Float64, l::Int64, r::Int64,
+                           np::Int64, t_int::StepRangeLen, t_step::Float64)
 
-    #anayltic solution
+    T = collect(t_int)[end]
+    plt = Plots.plot(title = "L2 Error with time step = $t_step, T = $T, a=$a, b=$λ",
+                     xlabel= "# of elements",
+                     ylabel="error")
+
+    for α = 1.0 : -.1 : .5
+        error_list = []
+        num_els = []
+        nk = 2
+        while (nk < 50)
+            
+            nk += 1
+            h = (r-l)/nk
+            x = l:h:r
+            u_t = Array{Float64,1}[]
+            f(x::Float64) = cos.((pi*x)/2)
+            g(t::Float64) = 0
+            M = Array{Float64, 2}(undef, np, np)
+            get_local_mass!(M, h)
+            M_inv = inv(M)
+            S = Array{Float64, 2}(undef, np, np)
+            get_local_stiffness!(S, h)    
+            A_l = M_inv * (-a .* S) + [λ 0 ; λ 0]
+            F_l = Array{Float64, 2}(undef, np, 4)
+            get_local_flux!(F_l, M_inv, a, α) 
+            A_g = spzeros(Float64, np * nk, np * nk)
+            get_global_advection!(A_g, A_l)
+            F_g = spzeros(Float64, np * nk, np * nk)
+            get_global_flux!(F_g, F_l)
+            G = A_g + F_g
+            b = zeros(np * nk) 
+            u_1 = zeros(length(t_int) + 1, np * nk)
+            u_avg = zeros(length(t_int) + 1, length(x))
+            get_inital_condition!(u_1, f, collect(x), nk)
+            advec_global_strong_euler!(u_1, G, b, t_int, t_step, g, a, M_inv)
+            
+            u_an = zeros(length(t_int) + 1, length(x))
+            u_a1!(u_an, a, λ, collect(x), pushfirst!(collect(t_int),0))
+            
+            error = 0.0
+            error = get_error!(error, u_1, u_an)
+            push!(error_list, error)
+            push!(num_els, nk)
+            #=
+            if α == 1 && nk == 90
+                 plot_DG(u_1, collect(x))
+            end
+            =#
+        end
+        
+        if α == 1
+           
+            best = round(minimum(error_list), digits = 2)
+            best_num_el = argmin(error_list)
+            best_label = "( $best_num_el , $best )"
+            
+            #scatter!([best_num_el], [best],
+            #         series_annotations = [Plots.text(best_label, :bottom, -1)], label="")
+        end
+        plot!(num_els, error_list, label = "alpha = $α")
+        
+    end
     
+    png("compare_alpha")
+    return plt
     
 end
 
+function get_error!(error::Float64, u_1::Array{Float64,2}, u_an::Array{Float64,2})
+    
+    for i=1:size(u_1,1)
+
+        u_num = u_1[i, : ]
+        #display(u_num)
+        u_a = u_an[i, : ]
+        #display(u_a)
+        error += (u_num[1] - u_a[1])^2
+        error += (u_num[end] - u_a[end])^2
+        for j=2:size(u_a,1)-1
+            error += (u_num[2*(j-1)] - u_a[j])^2
+            error += (u_num[2*(j-1) + 1] - u_a[j])^2
+        end
+    end
+
+    error = sqrt(error)
+    
+    return error
+
+end
 
 
 function main()
@@ -250,9 +347,9 @@ function main()
         ## Parameters ##
         
         # wave-speed
-        a = 1.0
+        a = 2.0
         # growth-speed?
-        λ = 0.5
+        λ = 1.0
         # flux parameter
         α = 1.0
         # Left side of the interval
@@ -260,13 +357,11 @@ function main()
         # Right side of the interval
         r = 1
         # Number of elements
-        nk = 100
+        nk = 50
         # order of approximations
         np = 2
         # Length of each element
         h = (r - l)/nk
-        @show h
-        @show a
         # elements as a range
         x = l:h:r
         # anayltic solution x values
@@ -278,23 +373,19 @@ function main()
         ## Time parameters ##
         
         # Total time
-        T = 1
+        T = 2.5
         # time step
-        t_step = .0001
+        t_step = .001
 
         # time interval
         t_int = t_step:t_step:T
         t_num = length(t_int)
-        
-        # solution to graph
-        u_t = Array{Float64,1}[]
-
-
+      
         ## intial and boundary conditions ##
 
         f(x::Float64) = cos.((pi*x)/2)
-        g(t::Float64) = 0
-
+        g(t::Float64) = sin.(pi*t)
+        
         ## Local Matrices ##
 
         # Mass matrix
@@ -302,21 +393,11 @@ function main()
         get_local_mass!(M, h)
 
         M_inv = inv(M)
-        @show h
-        print("M:\n")
-        display(M)
-        print("M_inv:\n")
-        display(M_inv)
         # Stiffness matrix
         S = Array{Float64, 2}(undef, np, np)
         get_local_stiffness!(S, h)
-        print("S:\n")
-        display(S)
-        display(-a * S)
         # Advection matrix
         A_l = M_inv * (-a .* S) + [λ 0 ; λ 0]
-        print("A_l:\n")
-        display(A_l)
         # Flux matrix
         F_l = Array{Float64, 2}(undef, np, 4)
         get_local_flux!(F_l, M_inv, a, α) 
@@ -340,25 +421,27 @@ function main()
         get_inital_condition!(u_1, f, collect(x), nk)
 
         u_2 = copy(u_1)
+
+        #show_stability_region(Matrix(G), h, t_step)
         
-        
-        advec_local_strong_euler!(u_1, A_l, F_l, t_int, t_step, nk, g, λ)
-        advec_global_strong_euler!(u_2, G, b, t_int, t_step, g, a)
-        plot_DG(u_1, collect(x))
-        #plot_DG(u_2, collect(x))
+        #advec_local_strong_euler!(u_1, A_l, F_l, t_int, t_step, nk, g, λ)
+        advec_global_strong_euler!(u_2, G, b, t_int, t_step, g, a, M_inv)
+        plot_DG(u_2, collect(x))
         #write_analytic(collect(x_an), collect(t_int), a, λ)
         #write_plot(u_2, collect(x))
+        #stab_check = stability_test(Matrix(G), t_step)
+        #@show stab_check
+        #convergence_table(a, λ, α, l, r, np, t_int, t_step)
 
-
-        
+        # loop to find stabilities
         #=
-        for t_step = .001:.001:.1
+        t_step = .01
+        for h = 3:1:1000
             advec_global_strong_euler!(u_1, G, b, t_int, t_step, g, a)
-            #show_stability_region(Matrix(G), h, t_step)
             stab_check = stability_test(Matrix(G), h, t_step)
-            @show t_step, stab_check
+            @show h, stab_check
             print("\n\n")
-            #plotDG(u_1, collect(x))
+
         end
         =#
 
